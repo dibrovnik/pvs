@@ -1,6 +1,6 @@
 {
   "name": "@dibrovnik/pvs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-dependency CLI for syncing project version across package manifests and configured files.",
   "type": "module",
   "bin": {
