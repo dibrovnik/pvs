@@ -119,6 +119,24 @@ test("rejects absolute path outside root", () => {
   }
 });
 
+test("rejects config path outside project root (absolute)", () => {
+  const dir = makeTmp();
+  try {
+    assert.throws(() => loadConfig(dir, "/etc/passwd"), { code: "PVS_UNSAFE_PATH" });
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("rejects config path outside project root (traversal)", () => {
+  const dir = makeTmp();
+  try {
+    assert.throws(() => loadConfig(dir, "../../evil.json"), { code: "PVS_UNSAFE_PATH" });
+  } finally {
+    cleanup(dir);
+  }
+});
+
 test("resolves target _resolved path", () => {
   const dir = makeTmp();
   try {

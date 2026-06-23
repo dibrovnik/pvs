@@ -11,7 +11,7 @@ export function atomicWrite(filePath, content, dryRun = false) {
 
   try {
     mkdirSync(dir, { recursive: true });
-    writeFileSync(tmp, content, "utf8");
+    writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
     renameSync(tmp, filePath);
   } catch (err) {
     try {

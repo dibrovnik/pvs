@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { processTarget } from "../src/core/targets.js";
@@ -121,6 +121,54 @@ test("fails on duplicate marker without multiple flag", () => {
     };
 
     assert.throws(() => processTarget(target, vars), /PVS_TARGET_MULTI_MATCH|Multiple marker/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("rejects symlink by default", () => {
+  const dir = makeTmp();
+  try {
+    const realFile = join(dir, "real.ts");
+    const linkFile = join(dir, "link.ts");
+    writeFileSync(realFile, "// pvs:start v\nold\n// pvs:end v\n");
+    // create a symlink pointing to the real file
+    void 0; // symlinkSync imported at top
+    symlinkSync(realFile, linkFile);
+
+    const target = {
+      file: "link.ts",
+      type: "marker",
+      id: "v",
+      template: "new",
+      _resolved: linkFile,
+    };
+
+    assert.throws(() => processTarget(target, vars, {}), { code: "PVS_UNSAFE_PATH" });
+  } finally {
+    cleanup(dir);
+  }
+});
+
+test("allows symlink when allowSymlinks:true", () => {
+  const dir = makeTmp();
+  try {
+    const realFile = join(dir, "real.ts");
+    const linkFile = join(dir, "link.ts");
+    writeFileSync(realFile, "// pvs:start v\nold\n// pvs:end v\n");
+    void 0; // symlinkSync imported at top
+    symlinkSync(realFile, linkFile);
+
+    const target = {
+      file: "link.ts",
+      type: "marker",
+      id: "v",
+      template: "$version",
+      _resolved: linkFile,
+    };
+
+    const { content } = processTarget(target, vars, { _allowSymlinks: true });
+    assert.ok(content.includes("1.4.2"));
   } finally {
     cleanup(dir);
   }

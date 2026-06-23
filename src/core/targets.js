@@ -1,26 +1,48 @@
-import { readFileSync, statSync, existsSync } from "node:fs";
+import { readFileSync, statSync, existsSync, lstatSync } from "node:fs";
 import { PvsError, EXIT } from "./errors.js";
 import { applyTemplate } from "./template.js";
+
+// Maximum regex string length for replace targets — prevents runaway backtracking
+const MAX_REGEX_LENGTH = 500;
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function readTargetFile(filePath, label, maxBytes) {
+function checkSymlink(filePath, label, allowSymlinks) {
+  if (allowSymlinks) return;
+  let lstat;
+  try {
+    lstat = lstatSync(filePath);
+  } catch {
+    return; // file doesn't exist yet (e.g. generated target), nothing to check
+  }
+  if (lstat.isSymbolicLink()) {
+    throw new PvsError(
+      `Symlink not allowed: ${label}. Set "allowSymlinks": true in pvs.config.json to enable.`,
+      "PVS_UNSAFE_PATH",
+      { exitCode: EXIT.UNSAFE_PATH, file: filePath }
+    );
+  }
+}
+
+function readTargetFile(filePath, label, maxBytes, allowSymlinks) {
   if (!existsSync(filePath)) {
     throw new PvsError(
       `Target file not found: ${label}`,
       "PVS_TARGET_NOT_FOUND",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: label }
     );
   }
+
+  checkSymlink(filePath, label, allowSymlinks);
 
   const stat = statSync(filePath);
   if (stat.size > maxBytes) {
     throw new PvsError(
       `File too large: ${label} (${stat.size} bytes, limit ${maxBytes})`,
       "PVS_FILE_TOO_LARGE",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: label }
     );
   }
 
@@ -29,7 +51,7 @@ function readTargetFile(filePath, label, maxBytes) {
     throw new PvsError(
       `Binary file not supported: ${label}`,
       "PVS_BINARY_FILE",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: label }
     );
   }
 
@@ -47,6 +69,7 @@ function isBinary(buf) {
 export function processTarget(target, vars, config = {}) {
   const filePath = target._resolved;
   const maxBytes = config._maxFileSizeBytes ?? 2 * 1024 * 1024;
+  const allowSymlinks = config._allowSymlinks === true;
 
   if (target.requireGit && !vars.gitSha) {
     throw new PvsError(
@@ -58,12 +81,14 @@ export function processTarget(target, vars, config = {}) {
 
   switch (target.type) {
     case "marker":
-      return processMarker(target, vars, filePath, maxBytes);
+      return processMarker(target, vars, filePath, maxBytes, allowSymlinks);
     case "replace":
-      return processReplace(target, vars, filePath, maxBytes);
+      return processReplace(target, vars, filePath, maxBytes, allowSymlinks);
     case "json":
-      return processJson(target, vars, filePath, maxBytes);
+      return processJson(target, vars, filePath, maxBytes, allowSymlinks);
     case "generated":
+      // generated does not read the file, but check symlink on the destination
+      checkSymlink(filePath, target.file, allowSymlinks);
       return processGenerated(target, vars, filePath);
     default:
       throw new PvsError(
@@ -74,8 +99,8 @@ export function processTarget(target, vars, config = {}) {
   }
 }
 
-function processMarker(target, vars, filePath, maxBytes) {
-  const content = readTargetFile(filePath, target.file, maxBytes);
+function processMarker(target, vars, filePath, maxBytes, allowSymlinks) {
+  const content = readTargetFile(filePath, target.file, maxBytes, allowSymlinks);
   const id = target.id;
   const escapedId = escapeRegex(id);
 
@@ -94,14 +119,14 @@ function processMarker(target, vars, filePath, maxBytes) {
     throw new PvsError(
       `No marker block '${id}' found in ${target.file}`,
       "PVS_TARGET_NO_MATCH",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: target.file }
     );
   }
   if (matches.length > 1 && !target.multiple) {
     throw new PvsError(
       `Multiple marker blocks '${id}' found in ${target.file}. Add "multiple": true to allow.`,
       "PVS_TARGET_MULTI_MATCH",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: target.file }
     );
   }
 
@@ -117,8 +142,16 @@ function processMarker(target, vars, filePath, maxBytes) {
   return { filePath, content: result };
 }
 
-function processReplace(target, vars, filePath, maxBytes) {
-  const content = readTargetFile(filePath, target.file, maxBytes);
+function processReplace(target, vars, filePath, maxBytes, allowSymlinks) {
+  const content = readTargetFile(filePath, target.file, maxBytes, allowSymlinks);
+
+  if (target.match.length > MAX_REGEX_LENGTH) {
+    throw new PvsError(
+      `Regex pattern too long in target "${target.file}" (${target.match.length} chars, max ${MAX_REGEX_LENGTH}). Use a shorter, more specific pattern.`,
+      "PVS_CONFIG_INVALID",
+      { exitCode: EXIT.CONFIG_ERROR }
+    );
+  }
 
   let re;
   try {
@@ -137,27 +170,27 @@ function processReplace(target, vars, filePath, maxBytes) {
     throw new PvsError(
       `No matches for pattern in ${target.file}: ${target.match}`,
       "PVS_TARGET_NO_MATCH",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: target.file }
     );
   }
   if (matches.length > 1 && !target.multiple) {
     throw new PvsError(
       `${matches.length} matches for pattern in ${target.file}. Add "multiple": true to allow.`,
       "PVS_TARGET_MULTI_MATCH",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: target.file }
     );
   }
 
   const replacement = applyTemplate(target.replace, vars);
-  // Escape $ in replacement string so String.replace doesn't interpret $1, $& etc.
+  // Escape $ so String.replace doesn't interpret $1, $& etc. as backreferences
   const safeReplacement = replacement.replace(/\$/g, "$$$$");
   const result = content.replace(re, safeReplacement);
 
   return { filePath, content: result };
 }
 
-function processJson(target, vars, filePath, maxBytes) {
-  const content = readTargetFile(filePath, target.file, maxBytes);
+function processJson(target, vars, filePath, maxBytes, allowSymlinks) {
+  const content = readTargetFile(filePath, target.file, maxBytes, allowSymlinks);
   const indent = detectJsonIndent(content);
   const trailingNewline = content.endsWith("\n");
 
@@ -168,7 +201,7 @@ function processJson(target, vars, filePath, maxBytes) {
     throw new PvsError(
       `Invalid JSON in ${target.file}: ${err.message}`,
       "PVS_CONFIG_INVALID",
-      { exitCode: EXIT.FS_ERROR, file: filePath }
+      { exitCode: EXIT.FS_ERROR, file: target.file }
     );
   }
 

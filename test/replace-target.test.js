@@ -132,6 +132,26 @@ test("replacement does not misinterpret $ in replacement string", () => {
   }
 });
 
+test("fails when regex pattern exceeds 500 chars", () => {
+  const dir = makeTmp();
+  try {
+    const filePath = join(dir, "file.txt");
+    writeFileSync(filePath, "some content\n");
+
+    const target = {
+      file: "file.txt",
+      type: "replace",
+      match: "a".repeat(501),
+      replace: "x",
+      _resolved: filePath,
+    };
+
+    assert.throws(() => processTarget(target, vars), /PVS_CONFIG_INVALID|too long/);
+  } finally {
+    cleanup(dir);
+  }
+});
+
 test("fails on invalid regex", () => {
   const dir = makeTmp();
   try {

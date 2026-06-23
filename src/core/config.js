@@ -7,6 +7,16 @@ const SUPPORTED_TYPES = new Set(["marker", "replace", "json", "generated"]);
 export function loadConfig(root, configPath = "pvs.config.json") {
   const absPath = resolve(root, configPath);
 
+  // Reject config paths that escape the project root
+  const configRel = relative(resolve(root), absPath);
+  if (configRel.startsWith("..") || isAbsolute(configRel)) {
+    throw new PvsError(
+      `Config path "${configPath}" resolves outside project root`,
+      "PVS_UNSAFE_PATH",
+      { exitCode: EXIT.UNSAFE_PATH }
+    );
+  }
+
   let raw;
   try {
     raw = readFileSync(absPath, "utf8");

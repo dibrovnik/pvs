@@ -22,6 +22,14 @@ export async function bump(release, options = {}) {
   const tagPrefix = options.tagPrefix || "v";
   const messageTemplate = options.message || "chore: release v$version";
 
+  if (doTag && !/^[a-zA-Z0-9._/-]*$/.test(tagPrefix)) {
+    throw new PvsError(
+      `Invalid --tag-prefix "${tagPrefix}". Allowed characters: letters, digits, '.', '_', '-', '/'.`,
+      "PVS_CONFIG_INVALID",
+      { exitCode: EXIT.CONFIG_ERROR }
+    );
+  }
+
   const config = loadConfig(root, configPath);
   const manifest = readManifest(root);
   const currentVersion = manifest.data.version;
