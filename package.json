@@ -1,0 +1,52 @@
+{
+  "name": "@dibrovnik/pvs",
+  "version": "0.1.0",
+  "description": "Zero-dependency CLI for syncing project version across package manifests and configured files.",
+  "type": "module",
+  "bin": {
+    "pvs": "./bin/pvs.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "src",
+    "schema",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check bin/pvs.js && node --test",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "keywords": [
+    "version",
+    "semver",
+    "release",
+    "cli",
+    "zero-dependency"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dibrovnik/pvs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dibrovnik/pvs/issues"
+  },
+  "homepage": "https://github.com/dibrovnik/pvs#readme",
+  "publishConfig": {
+    "access": "public"
+  }
+}

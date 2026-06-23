@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dibrovnik/pvs/blob/main/schema/pvs.schema.json",
+  "title": "pvs configuration",
+  "description": "Configuration schema for @dibrovnik/pvs — Project Version Sync",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version. Must be 1."
+    },
+    "allowSymlinks": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allow target paths that are symlinks."
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "maxFileSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2097152,
+          "description": "Maximum target file size in bytes (default: 2 MB)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "workspaces": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["root-only", "fixed", "manual", "off"],
+          "default": "root-only"
+        }
+      },
+      "additionalProperties": false
+    },
+    "targets": {
+      "type": "array",
+      "description": "Files to update when the version changes.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/definitions/markerTarget" },
+          { "$ref": "#/definitions/replaceTarget" },
+          { "$ref": "#/definitions/jsonTarget" },
+          { "$ref": "#/definitions/generatedTarget" }
+        ]
+      }
+    }
+  },
+  "required": ["targets"],
+  "additionalProperties": false,
+  "definitions": {
+    "baseTarget": {
+      "type": "object",
+      "required": ["file", "type"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Relative path to the target file (must stay within project root)."
+        },
+        "requireGit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Fail if git metadata ($gitSha, $gitShaLong) is unavailable."
+        }
+      }
+    },
+    "markerTarget": {
+      "allOf": [{ "$ref": "#/definitions/baseTarget" }],
+      "properties": {
+        "type": { "type": "string", "const": "marker" },
+        "id": {
+          "type": "string",
+          "description": "Marker block identifier used in pvs:start / pvs:end comments."
+        },
+        "template": {
+          "type": "string",
+          "description": "Content to place inside the marker block. Supports $version and other template variables."
+        },
+        "multiple": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow more than one marker block with this id in the file."
+        }
+      },
+      "required": ["file", "type", "id", "template"],
+      "additionalProperties": false
+    },
+    "replaceTarget": {
+      "allOf": [{ "$ref": "#/definitions/baseTarget" }],
+      "properties": {
+        "type": { "type": "string", "const": "replace" },
+        "match": {
+          "type": "string",
+          "description": "Regular expression (JS flavor) to match the text to replace."
+        },
+        "replace": {
+          "type": "string",
+          "description": "Replacement string. Supports $version and other template variables."
+        },
+        "multiple": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow replacing more than one match."
+        }
+      },
+      "required": ["file", "type", "match", "replace"],
+      "additionalProperties": false
+    },
+    "jsonTarget": {
+      "allOf": [{ "$ref": "#/definitions/baseTarget" }],
+      "properties": {
+        "type": { "type": "string", "const": "json" },
+        "values": {
+          "type": "object",
+          "description": "Map of dot-notation key paths to template strings. Example: { \"build.version\": \"$version\" }",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["file", "type", "values"],
+      "additionalProperties": false
+    },
+    "generatedTarget": {
+      "allOf": [{ "$ref": "#/definitions/baseTarget" }],
+      "properties": {
+        "type": { "type": "string", "const": "generated" },
+        "template": {
+          "type": "string",
+          "description": "Full file content template. The file will be completely overwritten."
+        }
+      },
+      "required": ["file", "type", "template"],
+      "additionalProperties": false
+    }
+  }
+}
