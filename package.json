@@ -4,7 +4,7 @@
   "description": "Zero-dependency CLI for syncing project version across package manifests and configured files.",
   "type": "module",
   "bin": {
-    "pvs": "./bin/pvs.js"
+    "pvs": "bin/pvs.js"
   },
   "exports": {
     ".": {
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dibrovnik/pvs.git"
+    "url": "git+https://github.com/dibrovnik/pvs.git"
   },
   "bugs": {
     "url": "https://github.com/dibrovnik/pvs/issues"
