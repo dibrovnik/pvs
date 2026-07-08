@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a problem with pvs
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: pvs version
+      description: Output of `pvs --version`
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: pvs.config.json
+      description: Paste your config (redact anything sensitive)
+      render: json
+  - type: textarea
+    id: repro
+    attributes:
+      label: Command and output
+      description: The exact command you ran and its full output
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
