@@ -59,3 +59,30 @@ export function gitTag(root, name, message) {
     );
   }
 }
+
+export function getLastTag(root, prefix = "") {
+  const args = prefix
+    ? ["describe", "--tags", "--abbrev=0", "--match", `${prefix}*`]
+    : ["describe", "--tags", "--abbrev=0"];
+  const r = git(args, root);
+  return r.ok ? r.stdout : "";
+}
+
+const RECORD_SEP = "\x1e";
+const FIELD_SEP = "\x1f";
+
+export function getCommitsSince(root, ref) {
+  const range = ref ? `${ref}..HEAD` : "HEAD";
+  const format = `%H${FIELD_SEP}%s${FIELD_SEP}%b${RECORD_SEP}`;
+  const r = git(["log", range, `--format=${format}`], root);
+  if (!r.ok) return [];
+
+  return r.stdout
+    .split(RECORD_SEP)
+    .map((rec) => rec.replace(/^\n/, ""))
+    .filter((rec) => rec.trim().length > 0)
+    .map((rec) => {
+      const [hash, subject, body] = rec.split(FIELD_SEP);
+      return { hash, subject: subject || "", body: (body || "").trim() };
+    });
+}

@@ -6,6 +6,7 @@ import { sync } from "./commands/sync.js";
 import { check } from "./commands/check.js";
 import { current } from "./commands/current.js";
 import { init } from "./commands/init.js";
+import { changelog } from "./commands/changelog.js";
 import { PvsError, EXIT } from "./core/errors.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,8 @@ const VALUE_FLAGS = new Set([
   "preid",
   "tag-prefix",
   "message",
+  "changelog-file",
+  "from",
 ]);
 
 function parseArgs(argv) {
@@ -58,6 +61,9 @@ function buildOptions(flags) {
     tag: flags["tag"] === true,
     tagPrefix: typeof flags["tag-prefix"] === "string" ? flags["tag-prefix"] : "v",
     message: typeof flags["message"] === "string" ? flags["message"] : undefined,
+    changelog: flags["changelog"] === true,
+    changelogFile: typeof flags["changelog-file"] === "string" ? flags["changelog-file"] : undefined,
+    from: typeof flags["from"] === "string" ? flags["from"] : undefined,
   };
 }
 
@@ -170,6 +176,20 @@ export async function runCli(argv) {
       break;
     }
 
+    case "changelog": {
+      const result = await changelog({ ...options, root });
+
+      if (json) {
+        process.stdout.write(toJson({ ok: true, ...result }) + "\n");
+      } else if (!quiet) {
+        process.stdout.write(
+          (options.dryRun ? "Would update" : "Updated") +
+            ` ${result.file} — ${result.commitCount} commit(s) since ${result.from}\n`
+        );
+      }
+      break;
+    }
+
     case "init": {
       const result = await init({ ...options, root });
 
@@ -196,18 +216,20 @@ function printHelp() {
   process.stdout.write(`pvs — Project Version Sync
 
 Usage:
-  pvs bump <patch|minor|major|prerelease|X.Y.Z> [options]
+  pvs bump <patch|minor|major|prerelease|auto|X.Y.Z> [options]
   pvs sync [options]
   pvs check [options]
   pvs current [--json]
+  pvs changelog [options]
   pvs init [--root <path>]
 
 Commands:
-  bump      Increment version and write all targets
-  sync      Write current version to all targets (no version change)
-  check     Verify all targets match current version (exit 1 on mismatch)
-  current   Print current version from package.json
-  init      Create a minimal pvs.config.json
+  bump        Increment version and write all targets
+  sync        Write current version to all targets (no version change)
+  check       Verify all targets match current version (exit 1 on mismatch)
+  current     Print current version from package.json
+  changelog   Generate a CHANGELOG.md entry from Conventional Commits
+  init        Create a minimal pvs.config.json
 
 Global options:
   --config <path>    Config file (default: pvs.config.json)
@@ -222,10 +244,21 @@ Global options:
   --help             Show this help
 
 bump options:
-  --preid <id>         Prerelease identifier (rc, beta, alpha)
-  --commit             Create a git commit after bumping
-  --tag                Create a git tag after bumping
-  --tag-prefix <val>   Tag prefix (default: v)
-  --message <tmpl>     Commit message template (default: "chore: release v\$version")
+  --preid <id>            Prerelease identifier (rc, beta, alpha)
+  --commit                Create a git commit after bumping
+  --tag                   Create a git tag after bumping
+  --tag-prefix <val>      Tag prefix (default: v)
+  --message <tmpl>        Commit message template (default: "chore: release v\$version")
+  --changelog             Prepend a CHANGELOG.md entry for this release
+  --changelog-file <path> Changelog file path (default: CHANGELOG.md)
+
+  "auto" as the release type picks patch/minor/major from Conventional
+  Commits since the last tag (feat -> minor, fix/other -> patch,
+  breaking change -> major).
+
+changelog options:
+  --from <ref>            Start of commit range (default: last tag matching --tag-prefix)
+  --tag-prefix <val>       Tag prefix used to find the last release tag (default: v)
+  --changelog-file <path>  Changelog file path (default: CHANGELOG.md)
 `);
 }

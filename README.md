@@ -1,14 +1,22 @@
 # @dibrovnik/pvs
 
+[![npm version](https://img.shields.io/npm/v/@dibrovnik/pvs.svg)](https://www.npmjs.com/package/@dibrovnik/pvs)
+[![CI](https://github.com/dibrovnik/pvs/actions/workflows/ci.yml/badge.svg)](https://github.com/dibrovnik/pvs/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/@dibrovnik/pvs.svg)](package.json)
+[![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
+[![license](https://img.shields.io/npm/l/@dibrovnik/pvs.svg)](LICENSE)
+
 **Project Version Sync** — zero-dependency CLI for syncing project version across `package.json`, lockfiles, and configured files.
 
 ```bash
 pvs bump patch    # 1.4.1 → 1.4.2
 pvs bump minor    # 1.4.2 → 1.5.0
 pvs bump major    # 1.5.0 → 2.0.0
+pvs bump auto     # picks patch/minor/major from Conventional Commits since the last tag
 pvs sync          # write current version to all targets
 pvs check         # verify all targets match, exit 1 on mismatch
 pvs current       # print current version
+pvs changelog     # prepend a CHANGELOG.md entry from Conventional Commits
 pvs init          # create pvs.config.json
 ```
 
@@ -163,11 +171,38 @@ Nested keys use dot notation. Indentation and trailing newline are preserved.
 ## `bump` options
 
 ```
---preid <id>         Prerelease identifier: rc, beta, alpha
---commit             Create a git commit
---tag                Create a git tag
---tag-prefix <val>   Tag prefix (default: v)
---message <tmpl>     Commit message template (default: "chore: release v$version")
+--preid <id>            Prerelease identifier: rc, beta, alpha
+--commit                Create a git commit
+--tag                   Create a git tag
+--tag-prefix <val>      Tag prefix (default: v)
+--message <tmpl>        Commit message template (default: "chore: release v$version")
+--changelog             Prepend a CHANGELOG.md entry for this release
+--changelog-file <path> Changelog file path (default: CHANGELOG.md)
+```
+
+## Changelog generation
+
+`pvs` parses [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): subject`, with `!` or a
+`BREAKING CHANGE:` footer for breaking changes) to build a [Keep a Changelog](https://keepachangelog.com/)-style entry.
+
+```bash
+pvs changelog                  # commits since the last tag -> CHANGELOG.md
+pvs changelog --from v1.2.0    # commits since an explicit ref
+pvs bump auto                  # feat -> minor, fix/other -> patch, breaking -> major
+pvs bump patch --changelog     # bump + write the changelog entry in one step
+```
+
+Only `feat`, `fix`, `perf`, and `revert` commits are included as sections (`Features`, `Bug Fixes`,
+`Performance Improvements`, `Reverts`); any breaking-change commit also gets a `BREAKING CHANGES` section at the top of
+the entry. Other types (`docs`, `chore`, `style`, `refactor`, `test`, `build`, `ci`, ...) are skipped — this matches the
+default behavior of tools like `conventional-changelog`/`standard-version`. Each entry line ends with the short commit
+hash; no links to a remote host are generated, keeping the output git-hosting-agnostic.
+
+```
+changelog options:
+--from <ref>             Start of commit range (default: last tag matching --tag-prefix)
+--tag-prefix <val>       Tag prefix used to find the last release tag (default: v)
+--changelog-file <path>  Changelog file path (default: CHANGELOG.md)
 ```
 
 ## Use with `npm version`
@@ -189,6 +224,8 @@ Nested keys use dot notation. Indentation and trailing newline are preserved.
 - **No network requests** — fully offline.
 - **File size limit** — 2 MB per target by default (configurable).
 
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -204,6 +241,11 @@ Nested keys use dot notation. Indentation and trailing newline are preserved.
 
 - Node.js >= 20.11
 
+## Contributing
+
+Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the zero-dependency policy, and commit
+message conventions. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
